@@ -1,0 +1,66 @@
+services:
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: ${PORT:-3000}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-UPtheRND}
+      UPLOADS_DIR: ${UPLOADS_DIR:-/data/uploads}
+      OUTPUTS_DIR: ${OUTPUTS_DIR:-/data/outputs}
+      JOBS_DIR: ${JOBS_DIR:-/data/jobs}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-5}
+      DEFAULT_SCALE: ${DEFAULT_SCALE:-2}
+      ALLOWED_SCALES: ${ALLOWED_SCALES:-2,4}
+    ports:
+      - '${PORT:-3000}:3000'
+    volumes:
+      - uploads_data:/data/uploads
+      - outputs_data:/data/outputs
+      - jobs_data:/data/jobs
+    depends_on:
+      worker:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1 || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  worker:
+    build:
+      context: ./apps/worker
+      dockerfile: Dockerfile
+      args:
+        INSTALL_AI_DEPS: ${INSTALL_AI_DEPS:-0}
+    env_file:
+      - .env
+    environment:
+      UPLOADS_DIR: ${UPLOADS_DIR:-/data/uploads}
+      OUTPUTS_DIR: ${OUTPUTS_DIR:-/data/outputs}
+      JOBS_DIR: ${JOBS_DIR:-/data/jobs}
+      WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-2}
+      UPSCALE_PROVIDER: ${UPSCALE_PROVIDER:-auto}
+      REALESRGAN_REPO_DIR: ${REALESRGAN_REPO_DIR:-/opt/Real-ESRGAN}
+      REALESRGAN_MODEL_NAME: ${REALESRGAN_MODEL_NAME:-RealESRGAN_x2plus}
+      REALESRGAN_FP32: ${REALESRGAN_FP32:-1}
+      PILLOW_SHARPNESS_STANDARD: ${PILLOW_SHARPNESS_STANDARD:-130}
+      PILLOW_SHARPNESS_PORTRAIT: ${PILLOW_SHARPNESS_PORTRAIT:-110}
+      PILLOW_SHARPNESS_ILLUSTRATION: ${PILLOW_SHARPNESS_ILLUSTRATION:-160}
+    volumes:
+      - uploads_data:/data/uploads
+      - outputs_data:/data/outputs
+      - jobs_data:/data/jobs
+      - ./external/Real-ESRGAN:/opt/Real-ESRGAN
+    restart: unless-stopped
+
+volumes:
+  uploads_data:
+  outputs_data:
+  jobs_data:
